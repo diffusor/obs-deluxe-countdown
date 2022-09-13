@@ -285,10 +285,10 @@ class State():
             'Clock Type', 'Duration', self.OBS_COMBO,
             ['Duration', 'Date/Time']
         )
-        _p['format'] = _fn('Format', 'HH:MM:SS', self.OBS_TEXT)
+        _p['format'] = _fn('Format', '%H:%M:%S', self.OBS_TEXT)
         _p['hide_zero_units'] = _fn('Hide Zero Units', False, self.OBS_BOOLEAN)
         _p['round_up'] = _fn('Round Up', False, self.OBS_BOOLEAN)
-        _p['duration'] = _fn('Duration', '0', self.OBS_TEXT)
+        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT)
         _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT)
         _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT)
         _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT)
