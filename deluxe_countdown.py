@@ -379,9 +379,9 @@ def update_text():
     _round_up = script_state.properties['round_up'].cur_value
     _time = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
 
-    _source = script_state.get_value('text_source')
+    _source_name = script_state.get_value('text_source')
 
-    if not _source:
+    if not _source_name:
         return
 
     _text = _time.string
@@ -391,7 +391,7 @@ def update_text():
         _text = script_state.get_value('end_text')
 
     _settings = obs.obs_data_create()
-    _source = obs.obs_get_source_by_name(_source)
+    _source = obs.obs_get_source_by_name(_source_name)
 
     obs.obs_data_set_string(_settings, 'text', _text)
     obs.obs_source_update(_source, _settings)
