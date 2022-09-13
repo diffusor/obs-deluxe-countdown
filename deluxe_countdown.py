@@ -320,8 +320,8 @@ class State():
 
                 _source_id = obs.obs_source_get_unversioned_id(_source)
 
-                if _source_id == "text_gdiplus"\
-                    or _source_id == "text_ft2_source":
+                if _source_id == "text_gdiplus" \
+                        or _source_id == "text_ft2_source":
 
                     _names.append(obs.obs_source_get_name(_source))
 
