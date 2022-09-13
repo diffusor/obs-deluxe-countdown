@@ -423,7 +423,7 @@ def activate_signal(cd, activating):
     """
     Called when source is activated / deactivated
     """
-    _source = obs.calldata_source(cd, "text_source")
+    _source = obs.calldata_source(cd, "source")
 
     if _source:
 
