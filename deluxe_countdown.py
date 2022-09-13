@@ -417,6 +417,7 @@ def activate(activating):
 
     #remove if going inactive
     else:
+        print("deactivating")
         obs.timer_remove(update_text)
 
 def handle_source_visibility_signal(cd):
@@ -428,9 +429,11 @@ def handle_source_visibility_signal(cd):
 
     if _source:
         sig_source_name = obs.obs_source_get_name(_source)
+        print(f"activate_signal() called with source '{sig_source_name}'.  active: {active}")
 
         target_text_source_name = script_state.get_value('text_source')
         if (sig_source_name == target_text_source_name):
+            print(f"activate_signal() source matches '{target_text_source_name}'")
             activate(active)
 
 def reset():
