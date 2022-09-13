@@ -419,31 +419,19 @@ def activate(activating):
     else:
         obs.timer_remove(update_text)
 
-def activate_signal(cd, activating):
+def handle_source_visibility_signal(cd):
     """
     Called when source is activated / deactivated
     """
     _source = obs.calldata_source(cd, "source")
+    active = obs.obs_source_active(_source)
 
     if _source:
+        sig_source_name = obs.obs_source_get_name(_source)
 
-        _name = obs.obs_source_get_name(_source)
-        if (_name == _name):
-            activate(activating)
-
-def source_activated(cd):
-    """
-    Signal callback for activation
-    """
-
-    activate_signal(cd, True)
-
-def source_deactivated(cd):
-    """
-    Signal callback for de-activation
-    """
-
-    activate_signal(cd, False)
+        target_text_source_name = script_state.get_value('text_source')
+        if (sig_source_name == target_text_source_name):
+            activate(active)
 
 def reset():
     """
@@ -589,8 +577,8 @@ def script_load(settings):
     """
 
     _sh = obs.obs_get_signal_handler()
-    obs.signal_handler_connect(_sh, "source_activate", source_activated)
-    obs.signal_handler_connect(_sh, "source_deactivate", source_deactivated)
+    obs.signal_handler_connect(_sh, "source_hide", handle_source_visibility_signal)
+    obs.signal_handler_connect(_sh, "source_show", handle_source_visibility_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
         "reset_timer_thingy", "Reset Timer", reset)
