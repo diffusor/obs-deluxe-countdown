@@ -22,6 +22,7 @@ https://github.com/obsproject/obs-studio/blob/b2302902a3b3e1cce140a6417f4c5e4908
 from datetime import datetime, timedelta
 import time
 import re
+import textwrap
 
 from types import SimpleNamespace
 from copy import deepcopy
@@ -253,7 +254,8 @@ class Clock():
 
 def fill_sources_property_list(list_property):
     """
-    Get list of text sources and fill them into the given property list
+    Update the list of Text Sources based on those currently known to OBS.
+    Use this when you want to display the countdown in a newly added source.
     """
 
     obs.obs_property_list_clear(list_property)
@@ -315,27 +317,63 @@ class State():
         #
         # induce_reset will cause restart_timer to reset the timer when this
         # setting is modified.  Other setting modifications won't reset the timer.
-        _fn = lambda p_name, p_default, p_type, p_list_items=None, p_induce_reset=False:\
+        _fn = lambda p_name, p_default, p_type, p_tooltip=None, p_list_items=None, p_induce_reset=False:\
             SimpleNamespace(
                 name=p_name, default=p_default, type=p_type, list_items=p_list_items,
-                cur_value=p_default, induce_reset=p_induce_reset, prop_ref=None)
+                cur_value=p_default, induce_reset=p_induce_reset, tooltip=p_tooltip, prop_ref=None)
 
         _p = {}
 
-        _p['clock_type'] = _fn(
-            'Clock Type', 'Duration', self.OBS_COMBO,
-            ['Duration', 'Date/Time']
-        )
-        _p['format'] = _fn('Format', '%H:%M:%S', self.OBS_TEXT)
-        _p['hide_zero_units'] = _fn('Hide Zero Units', False, self.OBS_BOOLEAN)
-        _p['round_up'] = _fn('Round Up', False, self.OBS_BOOLEAN)
-        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT, p_induce_reset=True)
-        _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT, p_induce_reset=True)
-        _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT, p_induce_reset=True)
-        _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT)
+        _p['clock_type'] = _fn('Clock Type', 'Duration', self.OBS_COMBO,
+                               p_list_items=['Duration', 'Date/Time'], p_tooltip="""
+            Choose the type of countdown timer:
+            * Duration: Count down to the last timer reset
+            * Date/Time: Count down to the given set point in time
+        """)
+
+        _p['format'] = _fn('Format', '%H:%M:%S', self.OBS_TEXT, p_tooltip="""
+            Display format for the countdown timer, using strftime-style % codes:
+              %d - days
+              %H - hours in 24-hour time format
+              %M - minutes
+              %S - seconds
+        """)
+
+        _p['hide_zero_units'] = _fn('Hide Zero Units', False, self.OBS_BOOLEAN, p_tooltip="""
+            Eliminate highest order clauses involving zero units.
+            For example, if Format is %H:%M:%S, but hours is 0 and minutes is not,
+            the resulting output will be $M:%S.
+        """)
+
+        _p['round_up'] = _fn('Round Up', False, self.OBS_BOOLEAN, p_tooltip="""
+            Round up to the next smallest unit when the remaining time falls in the middle.
+        """)
+
+        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+            Set the countdown duration to use in minutes, or %H:%M:%S format.
+        """)
+
+        _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+            Set the target date for use with the Date/Time Clock Type
+            The format is %Y:%m:%d (ISO style), or TODAY
+        """)
+
+        _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+            Set the target time for use with the Date/Time Clock Type
+            The format is "%H:%M:%S" for 24-hour time, or append am or pm for 12 hour time.
+        """)
+
+        _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT, p_tooltip="""
+            The text to display in the selected Text Source after the timer has expired.
+        """)
 
         _p['text_source'] = _fn('Text Source', '', self.OBS_COMBO,
-                                fill_sources_property_list)
+                                p_list_items=fill_sources_property_list, p_tooltip="""
+            The OBS text source into which the countdown timer will render.
+            Add a text source to your scene, click the "Reload Text Source list" button,
+            then select your new source from the dropdown.
+            Note the countdown timer will replace the contents of the selected text source.
+        """)
 
         return _p
 
@@ -405,6 +443,22 @@ script_state = State()
 #-----------------------
 # OBS callback functions
 #-----------------------
+
+def blkfmt(s):
+    """
+    Formats a triple-quoted string for display as a tooltip or discription:
+
+    * Removes common leading whitespace (via textwrap.dedent)
+    * Then removes leading and trailing whitespace via str.strip
+    """
+    return textwrap.dedent(s).strip()
+
+def set_prop_tooltip(prop, text):
+    """
+    Sets the given text as the prop's tooltip, after calling blkfmt on the text.
+    """
+    if text:
+        obs.obs_property_set_long_description(prop, blkfmt(text))
 
 def update_text():
     """
@@ -524,19 +578,15 @@ def script_update(settings):
 
 def script_description():
     """
-    Script description
+    Returns the Description text to display in the script settings pane.
+    (OBS main script callback)
     """
-    return """
-    Countdown clock for a duration or to a date/time.\n
-    Clock Type\tCount from now (Duration) or to target (Time)
-    Format\tOutput time format
-    Show Units\tShow time units in output
-    Duration\tInteger (sec) or HH:MM:SS
-    Date\t\tMM/DD/YYYY or TODAY
-    Time\t\tHH:MM:SS [am/pm] for 12-hour
-    End Text\tShown after countdown
-    Text Source\tSource for start / end text
-    """
+    return blkfmt("""
+        Display a countdown clock in an OBS text source.
+
+        Choose whether to count down a given duration of time,
+        or count down to a specified target date and time.
+    """)
 
 def script_defaults(settings):
     """
@@ -595,6 +645,7 @@ def script_properties():
                 _p = obs.obs_properties_add_button(
                     props, f'reload_{_k}', f'Reload {_v.name} list',
                     lambda props, p: True if _fill_prop_list(_v.prop_ref) else True)
+                set_prop_tooltip(_p, _fill_prop_list.__doc__)
 
             else:
 
@@ -603,14 +654,20 @@ def script_properties():
 
         elif _v.type == script_state.OBS_BOOLEAN:
 
-                obs.obs_properties_add_bool(props, _k, _v.name)
+                _v.prop_ref = obs.obs_properties_add_bool(props, _k, _v.name)
 
         else:
 
-            obs.obs_properties_add_text(props, _k, _v.name, _v.type)
+            _v.prop_ref = obs.obs_properties_add_text(props, _k, _v.name, _v.type)
 
-    obs.obs_properties_add_button(
+        set_prop_tooltip(_v.prop_ref, _v.tooltip)
+
+    _p = obs.obs_properties_add_button(
         props, 'reset_timer', 'Reset Timer', reset_button_clicked)
+    set_prop_tooltip(_p, """
+        Reset the timer to start from the given duration
+        (Relevant if the Duration Clock Type is selected)
+      """)
 
     script_state.obs_properties = props
 
