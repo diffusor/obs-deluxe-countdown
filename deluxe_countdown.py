@@ -449,20 +449,20 @@ def handle_source_visibility_signal(cd):
     Called when source is activated / deactivated
     """
     _source = obs.calldata_source(cd, "source")
-    active = obs.obs_source_active(_source)
+    _is_active = obs.obs_source_active(_source)
 
     if _source:
         sig_source_name = obs.obs_source_get_name(_source)
-        print(f"activate_signal() called with source '{sig_source_name}'.  active: {active}")
+        print(f"activate_signal() called with source '{sig_source_name}'.  active: {_is_active}")
 
         target_text_source_name = script_state.get_text_source_name()
         if (sig_source_name == target_text_source_name):
             print(f"activate_signal() source matches '{target_text_source_name}'")
-            activate(active)
+            activate(_is_active)
 
-def reset():
+def restart_timer():
     """
-    Reset the timer
+    Restart the timer given the current script_state settings
     """
 
     activate(False)
@@ -472,16 +472,16 @@ def reset():
     _source = obs.obs_get_source_by_name(_source_name)
 
     if _source:
-        _active = obs.obs_source_active(_source)
+        _is_active = obs.obs_source_active(_source)
         obs.obs_source_release(_source)
-        activate(_active)
+        activate(_is_active)
 
 def reset_button_clicked(props, p):
     """
-    Callback for the reset button
+    Callback for the Restart Timer button
     """
 
-    reset()
+    restart_timer()
     return False
 
 def script_update(settings):
@@ -505,7 +505,7 @@ def script_update(settings):
         _time = script_state.properties['time']
         script_state.clock.set_date_time(_date, _time)
 
-    reset()
+    restart_timer()
 
 def script_description():
     """
@@ -595,7 +595,7 @@ def script_properties():
             obs.obs_properties_add_text(props, _k, _v.name, _v.type)
 
     obs.obs_properties_add_button(
-        props, 'reset', 'Reset', reset_button_clicked)
+        props, 'restart_timer', 'Restart Timer', reset_button_clicked)
 
     script_state.obs_properties = props
 
@@ -640,7 +640,7 @@ def script_load(settings):
     #obs.signal_handler_connect_global(_sh, print_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
-        "reset_timer_thingy", "Reset Timer", reset)
+        "reset_timer_thingy", "Restart Timer", restart_timer)
 
     _hotkey_save_array = obs.obs_data_get_array(settings, "reset_hotkey")
     obs.obs_hotkey_load(_hotkey_id, _hotkey_save_array)
