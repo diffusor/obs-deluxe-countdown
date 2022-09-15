@@ -21,11 +21,16 @@ https://github.com/obsproject/obs-studio/blob/b2302902a3b3e1cce140a6417f4c5e4908
 
 from datetime import datetime, timedelta
 import time
+import re
 
 from types import SimpleNamespace
 from copy import deepcopy
 
 import obspython as obs
+
+# We fill the combo box with "source-name (source-type)" strings.
+# This sub pattern makes striking the following (source-type) simple.
+sub_out_source_type_info = re.compile(r' \([^()]+\)').sub
 
 class Clock():
     """
@@ -44,7 +49,7 @@ class Clock():
 
     def reset(self):
         """
-        Reset the clock - only effective for
+        Reset the clock - only effective for duration-style countdowns.
         """
 
         self.reference_time = datetime.now()
@@ -245,6 +250,35 @@ class Clock():
                 target_time[0], target_time[1], target_time[2]
         )
 
+def fill_sources_property_list(list_property):
+    """
+    Get list of text sources and fill them into the given property list
+    """
+
+    obs.obs_property_list_clear(list_property)
+    _sources = obs.obs_enum_sources()
+
+    for _source in _sources:
+
+        source_type = obs.obs_source_get_id(_source)
+        if source_type.startswith("text"):
+
+            _list_item = f"{obs.obs_source_get_name(_source)} ({source_type})"
+            print(f"Adding source '{_list_item}'")
+            obs.obs_property_list_add_string(list_property, _list_item, _list_item)
+
+    obs.source_list_release(_sources)
+
+    _has_items = obs.obs_property_list_item_count(list_property)
+    # Insert a dummy item so the script doesn't automatically select the first
+    # item on the list and clobber its contents.
+    obs.obs_property_list_insert_string(list_property, 0,
+        f'<None {"selected" if _has_items else "available"}>', '')
+
+    # When called from script_update() or via obs_property_set_modified_callback(),
+    # returning True induces OBS to regenerate the properties UI widgets.
+    return True
+
 class State():
     """
     Script state class
@@ -274,10 +308,12 @@ class State():
         """
 
         #lambda to return a SimpleNamespace object for OBS data properties
+        # items can be a list of items, or a function to call to get the list
+        # of items to use on each call to script_properties().
         _fn = lambda p_name, p_default, p_type, p_items=None:\
             SimpleNamespace(
-                name=p_name, default=p_default, type=p_type, items= p_items,
-                cur_value=p_default, ref=None)
+                name=p_name, default=p_default, type=p_type, list_items=p_items,
+                cur_value=p_default, prop_ref=None)
 
         _p = {}
 
@@ -293,39 +329,18 @@ class State():
         _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT)
         _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT)
 
-        _p['text_source'] =\
-            _fn('Text Source', '', self.OBS_COMBO, self.get_source_list())
+        _p['text_source'] = _fn('Text Source', '', self.OBS_COMBO,
+                                fill_sources_property_list)
 
         return _p
 
     def refresh_properties(self, settings):
         """
-        Refresh the state properites
+        Refresh the script state to match the given settings from the user UI update
         """
 
         for _k, _v in self.properties.items():
             _v.cur_value = self.get_value(_k, settings)
-
-    def get_source_list(self):
-        """
-        Get list of text sources
-        """
-
-        _sources = obs.obs_enum_sources()
-        _names = []
-
-        if _sources is not None:
-
-            for _source in _sources:
-
-                _source_id = obs.obs_source_get_unversioned_id(_source)
-
-                if _source_id == "text_gdiplus" \
-                        or _source_id == "text_ft2_source":
-
-                    _names.append(obs.obs_source_get_name(_source))
-
-        return _names
 
     def get_value(self, source_name, settings=None):
         """
@@ -349,6 +364,8 @@ class State():
 
     def set_value(self, source_name, prop, value):
         """
+        Dead code, seems broken
+
         Set the value of the source using the provided settings
         If settings is None, previously-provided settings will be used
         """
@@ -362,6 +379,12 @@ class State():
         obs.obs_source_release(_source)
 
         self.properties[source_name].cur_value = value
+
+    def get_text_source_name(self):
+        """
+        Get the name of the text source without the appended type information.
+        """
+        return sub_out_source_type_info("", self.get_value('text_source'))
 
 script_state = State()
 
@@ -379,7 +402,7 @@ def update_text():
     _round_up = script_state.properties['round_up'].cur_value
     _time = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
 
-    _source_name = script_state.get_value('text_source')
+    _source_name = script_state.get_text_source_name()
 
     if not _source_name:
         return
@@ -403,7 +426,7 @@ def activate(activating):
     Activate / deactivate timer based on source text object state
     """
 
-    #if already active, return
+    # When the state wouldn't change, return immediately.
     if script_state.activated == activating:
         return
 
@@ -412,6 +435,7 @@ def activate(activating):
     #add the timer if becoming active
     if activating:
 
+        print("activating")
         update_text()
         obs.timer_add(update_text, 1000)
 
@@ -431,7 +455,7 @@ def handle_source_visibility_signal(cd):
         sig_source_name = obs.obs_source_get_name(_source)
         print(f"activate_signal() called with source '{sig_source_name}'.  active: {active}")
 
-        target_text_source_name = script_state.get_value('text_source')
+        target_text_source_name = script_state.get_text_source_name()
         if (sig_source_name == target_text_source_name):
             print(f"activate_signal() source matches '{target_text_source_name}'")
             activate(active)
@@ -442,17 +466,15 @@ def reset():
     """
 
     activate(False)
+    script_state.clock.reset()
 
-    _source_name = script_state.get_value('text_source')
+    _source_name = script_state.get_text_source_name()
     _source = obs.obs_get_source_by_name(_source_name)
 
     if _source:
         _active = obs.obs_source_active(_source)
         obs.obs_source_release(_source)
         activate(_active)
-
-    script_state.clock.reset()
-    update_text()
 
 def reset_button_clicked(props, p):
     """
@@ -466,8 +488,6 @@ def script_update(settings):
     """
     Called when the user updates settings
     """
-
-    activate(False)
 
     script_state.refresh_properties(settings)
 
@@ -485,10 +505,7 @@ def script_update(settings):
         _time = script_state.properties['time']
         script_state.clock.set_date_time(_date, _time)
 
-    script_state.clock.reset()
-    update_text()
-
-    activate(True)
+    reset()
 
 def script_description():
     """
@@ -538,17 +555,36 @@ def script_properties():
     Create properties for script settings dialog
     """
 
+    print("OBS called script_properties()")
+
     props = obs.obs_properties_create()
 
     for _k, _v in script_state.properties.items():
 
         if _v.type == script_state.OBS_COMBO:
 
-            _p = obs.obs_properties_add_list(
+            _v.prop_ref = obs.obs_properties_add_list(
                 props, _k, _v.name, _v.type, obs.OBS_COMBO_FORMAT_STRING)
 
-            for _item in _v.items:
-                obs.obs_property_list_add_string(_p, _item, _item)
+            if callable(_v.list_items):
+
+                # _v.list_items is a function that fills the property list itself
+                _fill_prop_list = _v.list_items
+                _fill_prop_list(_v.prop_ref)
+
+                # Add a button to refresh the property list
+                # There is no way currently in OBS to update the properties
+                # widget except through a button callback or through a
+                # obs_property_set_modified_callback callback, each of which
+                # must retutrn True to update the widgets.
+                _p = obs.obs_properties_add_button(
+                    props, f'reload_{_k}', f'Reload {_v.name} list',
+                    lambda props, p: True if _fill_prop_list(_v.prop_ref) else True)
+
+            else:
+
+                for _item in _v.list_items:
+                    obs.obs_property_list_add_string(_v.prop_ref, _item, _item)
 
         elif _v.type == script_state.OBS_BOOLEAN:
 
@@ -574,6 +610,21 @@ def script_save(settings):
     obs.obs_data_set_array(settings, "reset_hotkey", _hotkey_save_array)
     obs.obs_data_array_release(_hotkey_save_array)
 
+def print_signal(signal_name, cd):
+    """
+    For debugging OBS signalling - wire up in script_load with
+    obs.signal_handler_connect_global(_sh, print_signal)
+    """
+
+    if signal_name.startswith('source'):
+        source = obs.calldata_source(cd, "source")
+        source_name = obs.obs_source_get_name(source)
+        source_type = obs.obs_source_get_id(source)
+        print(f"Signal '{signal_name}' raised for source '{source_name}' ({source_type})")
+
+    else:
+        print(f"Signal raised: '{signal_name}'")
+
 def script_load(settings):
     """
     Connect hotkey and activation/deactivation signal callbacks
@@ -582,6 +633,11 @@ def script_load(settings):
     _sh = obs.obs_get_signal_handler()
     obs.signal_handler_connect(_sh, "source_hide", handle_source_visibility_signal)
     obs.signal_handler_connect(_sh, "source_show", handle_source_visibility_signal)
+    # source_rename (ptr source, string new_name, string prev_name)
+    obs.signal_handler_connect(_sh, "source_rename", handle_source_visibility_signal)
+    #obs.signal_handler_connect(_sh, "source_create", handle_source_create)
+    #obs.signal_handler_connect(_sh, "source_destroy", handle_source_destroy)
+    #obs.signal_handler_connect_global(_sh, print_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
         "reset_timer_thingy", "Reset Timer", reset)
