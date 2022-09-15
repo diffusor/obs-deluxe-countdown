@@ -317,10 +317,12 @@ class State():
         #
         # induce_reset will cause restart_timer to reset the timer when this
         # setting is modified.  Other setting modifications won't reset the timer.
-        _fn = lambda p_name, p_default, p_type, p_tooltip=None, p_list_items=None, p_induce_reset=False:\
+        _fn = lambda p_name, p_default, p_type, p_tooltip=None,\
+                     p_list_items=None, p_callback=None, p_induce_reset=False:\
             SimpleNamespace(
-                name=p_name, default=p_default, type=p_type, list_items=p_list_items,
-                cur_value=p_default, induce_reset=p_induce_reset, tooltip=p_tooltip, prop_ref=None)
+                name=p_name, default=p_default, type=p_type, tooltip=p_tooltip,
+                list_items=p_list_items, callback=p_callback, induce_reset=p_induce_reset,
+                cur_value=p_default, prop_ref=None)
 
         _p = {}
 
@@ -373,6 +375,12 @@ class State():
             Add a text source to your scene, click the "Reload Text Source list" button,
             then select your new source from the dropdown.
             Note the countdown timer will replace the contents of the selected text source.
+        """)
+
+        _p['reset_timer'] = _fn('Reset Timer', '', self.OBS_BUTTON,
+                                p_callback=reset_button_clicked, p_tooltip="""
+            Reset the timer to start from the given duration
+            (Relevant if the Duration Clock Type is selected)
         """)
 
         return _p
@@ -656,18 +664,15 @@ def script_properties():
 
                 _v.prop_ref = obs.obs_properties_add_bool(props, _k, _v.name)
 
+        elif _v.type == script_state.OBS_BUTTON:
+
+            _v.prop_ref = obs.obs_properties_add_button(props, _k, _v.name, _v.callback)
+
         else:
 
             _v.prop_ref = obs.obs_properties_add_text(props, _k, _v.name, _v.type)
 
         set_prop_tooltip(_v.prop_ref, _v.tooltip)
-
-    _p = obs.obs_properties_add_button(
-        props, 'reset_timer', 'Reset Timer', reset_button_clicked)
-    set_prop_tooltip(_p, """
-        Reset the timer to start from the given duration
-        (Relevant if the Duration Clock Type is selected)
-      """)
 
     script_state.obs_properties = props
 
