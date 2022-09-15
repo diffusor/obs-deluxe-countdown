@@ -46,6 +46,7 @@ class Clock():
         self.target_time = None
         self.duration = None
         self.mode ='duration'
+        self.reset()
 
     def reset(self):
         """
@@ -308,12 +309,16 @@ class State():
         """
 
         #lambda to return a SimpleNamespace object for OBS data properties
-        # items can be a list of items, or a function to call to get the list
+        #
+        # list_items can be a list of items, or a function to call to get the list
         # of items to use on each call to script_properties().
-        _fn = lambda p_name, p_default, p_type, p_items=None:\
+        #
+        # induce_reset will cause restart_timer to reset the timer when this
+        # setting is modified.  Other setting modifications won't reset the timer.
+        _fn = lambda p_name, p_default, p_type, p_list_items=None, p_induce_reset=False:\
             SimpleNamespace(
-                name=p_name, default=p_default, type=p_type, list_items=p_items,
-                cur_value=p_default, prop_ref=None)
+                name=p_name, default=p_default, type=p_type, list_items=p_list_items,
+                cur_value=p_default, induce_reset=p_induce_reset, prop_ref=None)
 
         _p = {}
 
@@ -324,9 +329,9 @@ class State():
         _p['format'] = _fn('Format', '%H:%M:%S', self.OBS_TEXT)
         _p['hide_zero_units'] = _fn('Hide Zero Units', False, self.OBS_BOOLEAN)
         _p['round_up'] = _fn('Round Up', False, self.OBS_BOOLEAN)
-        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT)
-        _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT)
-        _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT)
+        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT, p_induce_reset=True)
+        _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT, p_induce_reset=True)
+        _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT, p_induce_reset=True)
         _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT)
 
         _p['text_source'] = _fn('Text Source', '', self.OBS_COMBO,
@@ -337,10 +342,19 @@ class State():
     def refresh_properties(self, settings):
         """
         Refresh the script state to match the given settings from the user UI update
+
+        Returns True if any script_state property with induce_reset set is modified.
         """
+        _induce_reset = False
 
         for _k, _v in self.properties.items():
+            _prior_value = _v.cur_value
             _v.cur_value = self.get_value(_k, settings)
+
+            if _v.induce_reset and _prior_value != _v.cur_value:
+                _induce_reset = True
+
+        return _induce_reset
 
     def get_value(self, source_name, settings=None):
         """
@@ -460,13 +474,15 @@ def handle_source_visibility_signal(cd):
             print(f"activate_signal() source matches '{target_text_source_name}'")
             activate(_is_active)
 
-def restart_timer():
+def restart_timer(induce_reset=True):
     """
     Restart the timer given the current script_state settings
     """
 
     activate(False)
-    script_state.clock.reset()
+
+    if induce_reset:
+        script_state.clock.reset()
 
     _source_name = script_state.get_text_source_name()
     _source = obs.obs_get_source_by_name(_source_name)
@@ -481,15 +497,14 @@ def reset_button_clicked(props, p):
     Callback for the Restart Timer button
     """
 
-    restart_timer()
-    return False
+    restart_timer(induce_reset=True)
 
 def script_update(settings):
     """
     Called when the user updates settings
     """
 
-    script_state.refresh_properties(settings)
+    _induce_reset = script_state.refresh_properties(settings)
 
     _type = script_state.properties['clock_type'].cur_value
 
@@ -505,7 +520,7 @@ def script_update(settings):
         _time = script_state.properties['time']
         script_state.clock.set_date_time(_date, _time)
 
-    restart_timer()
+    restart_timer(_induce_reset)
 
 def script_description():
     """
@@ -595,7 +610,7 @@ def script_properties():
             obs.obs_properties_add_text(props, _k, _v.name, _v.type)
 
     obs.obs_properties_add_button(
-        props, 'restart_timer', 'Restart Timer', reset_button_clicked)
+        props, 'reset_timer', 'Reset Timer', reset_button_clicked)
 
     script_state.obs_properties = props
 
@@ -640,7 +655,7 @@ def script_load(settings):
     #obs.signal_handler_connect_global(_sh, print_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
-        "reset_timer_thingy", "Restart Timer", restart_timer)
+        "reset_timer_thingy", "Reset Timer", restart_timer)
 
     _hotkey_save_array = obs.obs_data_get_array(settings, "reset_hotkey")
     obs.obs_hotkey_load(_hotkey_id, _hotkey_save_array)
