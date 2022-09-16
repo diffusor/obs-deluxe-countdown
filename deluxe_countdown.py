@@ -446,11 +446,9 @@ class State():
         """
         return sub_out_source_type_info("", self.get_value('text_source'))
 
-script_state = State()
-
-#-----------------------
-# OBS callback functions
-#-----------------------
+#------------------------------------------------
+# Handlers and helpers for OBS callback functions
+#------------------------------------------------
 
 def blkfmt(s):
     """
@@ -529,11 +527,11 @@ def handle_source_visibility_signal(cd):
 
     if _source:
         sig_source_name = obs.obs_source_get_name(_source)
-        print(f"activate_signal() called with source '{sig_source_name}'.  active: {_is_active}")
+        #print(f"activate_signal() called with source '{sig_source_name}'.  active: {_is_active}")
 
         target_text_source_name = script_state.get_text_source_name()
         if (sig_source_name == target_text_source_name):
-            print(f"activate_signal() source matches '{target_text_source_name}'")
+            #print(f"activate_signal() source matches '{target_text_source_name}'")
             activate(_is_active)
 
 def restart_timer(induce_reset=True):
@@ -560,6 +558,25 @@ def reset_button_clicked(props, p):
     """
 
     restart_timer(induce_reset=True)
+
+def print_signal(signal_name, cd):
+    """
+    For debugging OBS signalling - wire up in script_load with
+    obs.signal_handler_connect_global(_sh, print_signal)
+    """
+
+    if signal_name.startswith('source'):
+        source = obs.calldata_source(cd, "source")
+        source_name = obs.obs_source_get_name(source)
+        source_type = obs.obs_source_get_id(source)
+        print(f"Signal '{signal_name}' raised for source '{source_name}' ({source_type})")
+
+    else:
+        print(f"Signal raised: '{signal_name}'")
+
+#-----------------------
+# OBS callback functions
+#-----------------------
 
 def script_update(settings):
     """
@@ -687,21 +704,6 @@ def script_save(settings):
     obs.obs_data_set_array(settings, "reset_hotkey", _hotkey_save_array)
     obs.obs_data_array_release(_hotkey_save_array)
 
-def print_signal(signal_name, cd):
-    """
-    For debugging OBS signalling - wire up in script_load with
-    obs.signal_handler_connect_global(_sh, print_signal)
-    """
-
-    if signal_name.startswith('source'):
-        source = obs.calldata_source(cd, "source")
-        source_name = obs.obs_source_get_name(source)
-        source_type = obs.obs_source_get_id(source)
-        print(f"Signal '{signal_name}' raised for source '{source_name}' ({source_type})")
-
-    else:
-        print(f"Signal raised: '{signal_name}'")
-
 def script_load(settings):
     """
     Connect hotkey and activation/deactivation signal callbacks
@@ -722,3 +724,12 @@ def script_load(settings):
     _hotkey_save_array = obs.obs_data_get_array(settings, "reset_hotkey")
     obs.obs_hotkey_load(_hotkey_id, _hotkey_save_array)
     obs.obs_data_array_release(_hotkey_save_array)
+
+#--------------------
+# Script state global
+#--------------------
+
+# We must wait to call the State() constructor until after its callback
+# handlers have been defined, so this is done at the end.
+
+script_state = State()
