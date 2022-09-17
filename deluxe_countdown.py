@@ -260,36 +260,6 @@ class Clock():
                 target_time[0], target_time[1], target_time[2]
         )
 
-def fill_sources_property_list(list_property):
-    """
-    Update the list of Text Sources based on those currently known to OBS.
-    Use this when you want to display the countdown in a newly added source.
-    """
-
-    obs.obs_property_list_clear(list_property)
-    _sources = obs.obs_enum_sources()
-
-    for _source in _sources:
-
-        source_type = obs.obs_source_get_id(_source)
-        if source_type.startswith("text"):
-
-            _list_item = f"{obs.obs_source_get_name(_source)} ({source_type})"
-            print(f"Adding source '{_list_item}'")
-            obs.obs_property_list_add_string(list_property, _list_item, _list_item)
-
-    obs.source_list_release(_sources)
-
-    _has_items = obs.obs_property_list_item_count(list_property)
-    # Insert a dummy item so the script doesn't automatically select the first
-    # item on the list and clobber its contents.
-    obs.obs_property_list_insert_string(list_property, 0,
-        f'<None {"selected" if _has_items else "available"}>', '')
-
-    # When called from script_update() or via obs_property_set_modified_callback(),
-    # returning True induces OBS to regenerate the properties UI widgets.
-    return True
-
 @dataclass
 class Preference:
     """
@@ -505,6 +475,36 @@ def set_prop_tooltip(prop, text):
     """
     if text:
         obs.obs_property_set_long_description(prop, blkfmt(text))
+
+def fill_sources_property_list(list_property):
+    """
+    Update the list of Text Sources based on those currently known to OBS.
+    Use this when you want to display the countdown in a newly added source.
+    """
+
+    obs.obs_property_list_clear(list_property)
+    _sources = obs.obs_enum_sources()
+
+    for _source in _sources:
+
+        source_type = obs.obs_source_get_id(_source)
+        if source_type.startswith("text"):
+
+            _list_item = f"{obs.obs_source_get_name(_source)} ({source_type})"
+            print(f"Adding source '{_list_item}'")
+            obs.obs_property_list_add_string(list_property, _list_item, _list_item)
+
+    obs.source_list_release(_sources)
+
+    _has_items = obs.obs_property_list_item_count(list_property)
+    # Insert a dummy item so the script doesn't automatically select the first
+    # item on the list and clobber its contents.
+    obs.obs_property_list_insert_string(list_property, 0,
+        f'<None {"selected" if _has_items else "available"}>', '')
+
+    # When called from script_update() or via obs_property_set_modified_callback(),
+    # returning True induces OBS to regenerate the properties UI widgets.
+    return True
 
 def update_text():
     """
