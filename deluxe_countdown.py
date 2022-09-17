@@ -24,14 +24,23 @@ import time
 import re
 import textwrap
 
-from types import SimpleNamespace
-from copy import deepcopy
+import typing
+import collections
+from dataclasses import dataclass
 
 import obspython as obs
 
 # We fill the combo box with "source-name (source-type)" strings.
 # This sub pattern makes striking the following (source-type) simple.
 sub_out_source_type_info = re.compile(r' \([^()]+\)').sub
+
+@dataclass
+class AnnotatedDuration:
+    """
+    Class containing a formatted duration string and its associated duration in seconds.
+    """
+    string: str
+    seconds: float
 
 class Clock():
     """
@@ -58,7 +67,7 @@ class Clock():
 
     def get_time(self, time_format, hide_zero_time, round_up):
         """
-        Get the countdown time as a string
+        Get the countdown time as an AnnotatedDuration
         """
 
         _current_time = datetime.now()
@@ -148,8 +157,7 @@ class Clock():
 
         _string = _result + time.strftime(time_format, time.gmtime(_duration_2))
 
-        return SimpleNamespace(
-            string = _string, seconds = _duration)
+        return AnnotatedDuration(string=_string, seconds=_duration)
 
     def set_duration(self, interval):
         """
@@ -282,6 +290,36 @@ def fill_sources_property_list(list_property):
     # returning True induces OBS to regenerate the properties UI widgets.
     return True
 
+@dataclass
+class Preference:
+    """
+    Class representing a script configuration setting's value and UI.
+
+    A Preference can be automatically translated into an OBS widget based on
+    its type using the OBS properties API.
+
+    It also stores the value selected, updated via callbacks.  If OBS provided
+    a means to query the current value directly from an obs_property_t, this
+    class would not be required.
+    """
+
+    key: str  # Key used to store the Preference in a dict
+    name: str  # Display name used in the widget
+    default: typing.Any  # default value of the Preference (set via the "Defaults" button)
+    type: typing.Any  # obs.OBS_* type specifier
+    tooltip: typing.Optional[str] = None  # Detailed description of the Preference
+
+    # list_items can be a list of items, or a function to call to fill in the
+    # list items into the passed in obs_property_t object.
+    list_items: typing.Union[None,
+                             list[str],
+                             collections.abc.Callable[[any], None]] = None
+
+    # Function to call on button press, for buttons only
+    callback: typing.Optional[collections.abc.Callable] = None
+    induce_reset: bool = False # When true, reset should be called when the user modifies this preference
+    cur_value: typing.Any = None # current value of the Preference (reset via the "Defaults" button)
+
 class State():
     """
     Script state class
@@ -310,30 +348,21 @@ class State():
         Build dict defining script properties
         """
 
-        #lambda to return a SimpleNamespace object for OBS data properties
-        #
-        # list_items can be a list of items, or a function to call to get the list
-        # of items to use on each call to script_properties().
-        #
-        # induce_reset will cause restart_timer to reset the timer when this
-        # setting is modified.  Other setting modifications won't reset the timer.
-        _fn = lambda p_name, p_default, p_type, p_tooltip=None,\
-                     p_list_items=None, p_callback=None, p_induce_reset=False:\
-            SimpleNamespace(
-                name=p_name, default=p_default, type=p_type, tooltip=p_tooltip,
-                list_items=p_list_items, callback=p_callback, induce_reset=p_induce_reset,
-                cur_value=p_default, prop_ref=None)
-
         _p = {}
 
-        _p['clock_type'] = _fn('Clock Type', 'Duration', self.OBS_COMBO,
-                               p_list_items=['Duration', 'Date/Time'], p_tooltip="""
+        def add_pref(key, name, default, *args, **kwargs):
+            _p[key] = Preference(key, name, default, *args, **kwargs, cur_value=default)
+
+        add_pref('clock_type', 'Clock Type', 'Duration', self.OBS_COMBO,
+                 list_items=['Duration', 'Date/Time'],
+                 tooltip="""
             Choose the type of countdown timer:
             * Duration: Count down to the last timer reset
             * Date/Time: Count down to the given set point in time
         """)
 
-        _p['format'] = _fn('Format', '%H:%M:%S', self.OBS_TEXT, p_tooltip="""
+        add_pref('format', 'Format', '%H:%M:%S', self.OBS_TEXT,
+                 tooltip="""
             Display format for the countdown timer, using strftime-style % codes:
               %d - days
               %H - hours in 24-hour time format
@@ -341,44 +370,55 @@ class State():
               %S - seconds
         """)
 
-        _p['hide_zero_units'] = _fn('Hide Zero Units', False, self.OBS_BOOLEAN, p_tooltip="""
+        add_pref('hide_zero_units', 'Hide Zero Units', False, self.OBS_BOOLEAN,
+                 tooltip="""
             Eliminate highest order clauses involving zero units.
             For example, if Format is %H:%M:%S, but hours is 0 and minutes is not,
             the resulting output will be $M:%S.
         """)
 
-        _p['round_up'] = _fn('Round Up', False, self.OBS_BOOLEAN, p_tooltip="""
+        add_pref('round_up', 'Round Up', False, self.OBS_BOOLEAN,
+                 tooltip="""
             Round up to the next smallest unit when the remaining time falls in the middle.
         """)
 
-        _p['duration'] = _fn('Duration', '1000', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+        add_pref('duration', 'Duration', '1000', self.OBS_TEXT,
+                 induce_reset=True,
+                 tooltip="""
             Set the countdown duration to use in minutes, or %H:%M:%S format.
         """)
 
-        _p['date'] = _fn('Date', 'TODAY', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+        add_pref('date', 'Date', 'TODAY', self.OBS_TEXT,
+                 induce_reset=True,
+                 tooltip="""
             Set the target date for use with the Date/Time Clock Type
             The format is %Y:%m:%d (ISO style), or TODAY
         """)
 
-        _p['time'] = _fn('Time', '12:00:00 pm', self.OBS_TEXT, p_induce_reset=True, p_tooltip="""
+        add_pref('time', 'Time', '12:00:00 pm', self.OBS_TEXT,
+                 induce_reset=True,
+                 tooltip="""
             Set the target time for use with the Date/Time Clock Type
             The format is "%H:%M:%S" for 24-hour time, or append am or pm for 12 hour time.
         """)
 
-        _p['end_text'] = _fn('End Text', 'Live Now!', self.OBS_TEXT, p_tooltip="""
+        add_pref('end_text', 'End Text', 'Live Now!', self.OBS_TEXT,
+                 tooltip="""
             The text to display in the selected Text Source after the timer has expired.
         """)
 
-        _p['text_source'] = _fn('Text Source', '', self.OBS_COMBO,
-                                p_list_items=fill_sources_property_list, p_tooltip="""
+        add_pref('text_source', 'Text Source', '', self.OBS_COMBO,
+                 list_items=fill_sources_property_list,
+                 tooltip="""
             The OBS text source into which the countdown timer will render.
             Add a text source to your scene, click the "Reload Text Source list" button,
             then select your new source from the dropdown.
             Note the countdown timer will replace the contents of the selected text source.
         """)
 
-        _p['reset_timer'] = _fn('Reset Timer', '', self.OBS_BUTTON,
-                                p_callback=reset_button_clicked, p_tooltip="""
+        add_pref('reset_timer', 'Reset Timer', '', self.OBS_BUTTON,
+                 callback=reset_button_clicked,
+                 tooltip="""
             Reset the timer to start from the given duration
             (Relevant if the Duration Clock Type is selected)
         """)
@@ -474,16 +514,16 @@ def update_text():
     _hide_zero_units = script_state.properties['hide_zero_units'].cur_value
     _format = script_state.properties['format'].cur_value
     _round_up = script_state.properties['round_up'].cur_value
-    _time = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
+    _annotated_duration = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
 
     _source_name = script_state.get_text_source_name()
 
     if not _source_name:
         return
 
-    _text = _time.string
+    _text = _annotated_duration.string
 
-    if _time.seconds == 0:
+    if _annotated_duration.seconds == 0:
         obs.remove_current_callback()
         _text = script_state.get_value('end_text')
 
