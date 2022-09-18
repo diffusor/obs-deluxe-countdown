@@ -462,7 +462,18 @@ def set_prop_tooltip(prop, text):
     if text:
         obs.obs_property_set_long_description(prop, blkfmt(text))
 
-def fill_sources_property_list(props, list_property):
+def set_last_update_timestamp(props, reason):
+    """
+    Sets the "Last Update" info field with the current timestamp
+    and a parenthesized reason explaining why the field was updated.
+    """
+
+    _last_update_prop = obs.obs_properties_get(props, "last_update")
+    if _last_update_prop:
+        obs.obs_property_set_long_description(_last_update_prop,
+                                              f"{datetime.now()}\n({reason})")
+
+def fill_sources_property_list(props, list_property, reason):
     """
     Update the list of Text Sources based on those currently known to OBS.
     Use this when you want to display the countdown in a newly added source.
@@ -486,14 +497,12 @@ def fill_sources_property_list(props, list_property):
     # Insert a dummy item so the script doesn't automatically select the first
     # item on the list and clobber its contents.
     obs.obs_property_list_insert_string(list_property, 0,
-        f'<None {"selected" if _has_items else "available"}>', '')
+        f'<[{datetime.now()}] None {"selected" if _has_items else "available"}>', '')
 
-    # When called from script_update() or via obs_property_set_modified_callback(),
+    set_last_update_timestamp(props, reason)
+
+    # When called from a button callback or via obs_property_set_modified_callback(),
     # returning True induces OBS to regenerate the properties UI widgets.
-
-    _last_update_prop = obs.obs_properties_get(props, "last_update")
-    if _last_update_prop:
-        obs.obs_property_set_long_description(_last_update_prop, str(datetime.now()))
     return True
 
 def update_text():
@@ -690,7 +699,7 @@ def script_properties():
 
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
-                _fill_prop_list(props, _v.prop_ref)
+                _fill_prop_list(props, _v.prop_ref, "init")
 
                 # Add a button to refresh the property list
                 # There is no way currently in OBS to update the properties
@@ -699,7 +708,7 @@ def script_properties():
                 # must retutrn True to update the widgets.
                 _p = obs.obs_properties_add_button(
                     props, f'reload_{_k}', f'Reload {_v.name} list',
-                    lambda cd_props, p: True if _fill_prop_list(cd_props, _v.prop_ref) else True)
+                    lambda cd_props, p: True if _fill_prop_list(cd_props, _v.prop_ref, "reload sources button") else True)
                 set_prop_tooltip(_p, _fill_prop_list.__doc__)
 
             else:
@@ -727,6 +736,7 @@ def script_properties():
 
     script_state.obs_properties = props
 
+    set_last_update_timestamp(props, "script load")
     return props
 
 def script_save(settings):
