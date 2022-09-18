@@ -567,19 +567,39 @@ def activate(activating):
 
 def handle_source_visibility_signal(cd):
     """
-    Called when source is activated / deactivated
+    Called when a source is changed such that we should consider activating or
+    deactivating the countdown timer.
     """
-    _source = obs.calldata_source(cd, "source")
-    _is_active = obs.obs_source_active(_source)
+    _cd_source = obs.calldata_source(cd, "source")
+    if not _cd_source:
+        return
 
-    if _source:
-        sig_source_name = obs.obs_source_get_name(_source)
-        #print(f"activate_signal() called with source '{sig_source_name}'.  active: {_is_active}")
+    # If the passed in data isn't a text source, ignore the signal
+    _cd_source_type = obs.obs_source_get_id(_cd_source)
+    if not _cd_source_type.startswith("text"):
+        return
 
-        target_text_source_name = script_state.get_text_source_name()
-        if (sig_source_name == target_text_source_name):
-            #print(f"activate_signal() source matches '{target_text_source_name}'")
-            activate(_is_active)
+    # Determine whether we should activate the timer or deactivate it
+
+    _target_text_source_name = script_state.get_text_source_name()
+    _target_source = obs.obs_get_source_by_name(_target_text_source_name)
+    if not _target_source:
+
+        # The target source no longer exists
+        activate(False)
+        return
+
+    _target_source_type = obs.obs_source_get_id(_target_source)
+    if not _target_source_type.startswith("text"):
+
+        # The target source is no longer a text source
+        activate(False)
+        return
+
+    # The target source exists and is a text source; activate according to
+    # whether OBS thinks the source is active on any view
+    _is_active = obs.obs_source_active(_target_source)
+    activate(_is_active)
 
 def restart_timer(induce_reset=True):
     """
@@ -766,10 +786,9 @@ def script_load(settings):
     _sh = obs.obs_get_signal_handler()
     obs.signal_handler_connect(_sh, "source_hide", handle_source_visibility_signal)
     obs.signal_handler_connect(_sh, "source_show", handle_source_visibility_signal)
-    # source_rename (ptr source, string new_name, string prev_name)
     obs.signal_handler_connect(_sh, "source_rename", handle_source_visibility_signal)
-    #obs.signal_handler_connect(_sh, "source_create", handle_source_create)
-    #obs.signal_handler_connect(_sh, "source_destroy", handle_source_destroy)
+    obs.signal_handler_connect(_sh, "source_create", handle_source_visibility_signal)
+    obs.signal_handler_connect(_sh, "source_destroy", handle_source_visibility_signal)
     #obs.signal_handler_connect_global(_sh, print_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
