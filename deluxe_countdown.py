@@ -515,13 +515,13 @@ def add_combo_list_regeneration_button(props, combo_prop, regen_fn):
 
     _p = obs.obs_properties_add_button(
         props, f'reload_{_combo_prop_setting_name}', f'Reload {_combo_prop_display_name} list',
-        lambda cd_props, cd_prop: True if regen_fn(cd_props, _combo_prop_setting_name, f"reload_{_combo_prop_setting_name} button") else True)
+        lambda cd_props, cd_prop: True if regen_fn(cd_props, combo_prop, f"reload_{_combo_prop_setting_name} button") else True)
 
     set_prop_tooltip(_p, regen_fn.__doc__)
 
-def fill_sources_property_list(props, setting_name, reason):
+def fill_sources_property_list(props, list_property, reason):
     """
-    Updates the string combo box list in props as identified by setting_name.
+    Updates the string combo box list referenced by combo_prop.
 
     This function lists all available text-type sources currently configured
     in OBS, and populates the combo box with those names.
@@ -530,8 +530,6 @@ def fill_sources_property_list(props, setting_name, reason):
     redrawn.  (This only applies when this function is called as a callback
     for a button or as registered via obs_property_set_modified_callback.)
     """
-
-    list_property = obs.obs_properties_get(props, "text_source")
 
     obs.obs_property_list_clear(list_property)
     _sources = obs.obs_enum_sources()
@@ -794,7 +792,7 @@ def script_properties():
 
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
-                _fill_prop_list(props, _k, "init")
+                _fill_prop_list(props, _prop, "init")
                 add_combo_list_regeneration_button(props, _prop, _fill_prop_list)
 
             else:
