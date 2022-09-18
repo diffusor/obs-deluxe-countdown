@@ -463,7 +463,7 @@ def auto_release_source(source):
     the bound variable refers to the referenced source.  Afterwards, the source is released.
     """
     if isinstance(source, str):
-        source = obs.obs_get_source_by_name(_name)
+        source = obs.obs_get_source_by_name(source)
 
     try:
         yield source
