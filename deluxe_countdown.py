@@ -492,10 +492,10 @@ def fill_sources_property_list(props, setting_name, reason):
 
     for _source in _sources:
 
-        source_type = obs.obs_source_get_id(_source)
-        if source_type.startswith("text"):
+        _source_type = obs.obs_source_get_id(_source)
+        if _source_type.startswith("text"):
 
-            _list_item = f"{obs.obs_source_get_name(_source)} ({source_type})"
+            _list_item = f"{obs.obs_source_get_name(_source)} ({_source_type})"
             print(f"Adding source '{_list_item}'")
             obs.obs_property_list_add_string(list_property, _list_item, _list_item)
 
