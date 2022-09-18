@@ -412,7 +412,7 @@ class State():
 
         return _induce_reset
 
-    def get_value(self, source_name, settings=None):
+    def get_value(self, pref_name, settings=None):
         """
         Get the value of the source using the provided settings
         If settings is None, previously-provided settings will be used
@@ -422,15 +422,13 @@ class State():
 
             _fn = obs.obs_data_get_string
 
-            if self.properties[source_name].type == self.OBS_BOOLEAN:
+            if self.properties[pref_name].type == self.OBS_BOOLEAN:
                 _fn = obs.obs_data_get_bool
 
-            _value = _fn(settings, source_name)
-            self.properties[source_name].cur_value = _value
+            _value = _fn(settings, pref_name)
+            self.properties[pref_name].cur_value = _value
 
-            return _fn(settings, source_name)
-
-        return self.properties[source_name].cur_value
+        return self.properties[pref_name].cur_value
 
     def set_value(self, source_name, prop, value):
         """
