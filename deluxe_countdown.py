@@ -641,6 +641,12 @@ def print_signal(signal_name, cd):
     else:
         print(f"Signal raised: '{signal_name}'")
 
+def print_properties(props):
+    for _k, _v in script_state.properties.items():
+        _prop = obs.obs_properties_get(props, "text_source")
+        if _prop:
+            print(f"Property {_k}: {_prop}")
+
 #-----------------------
 # OBS callback functions
 #-----------------------
