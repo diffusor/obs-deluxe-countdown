@@ -698,16 +698,18 @@ def script_properties():
 
     for _k, _v in script_state.properties.items():
 
+        _prop = None
+
         if _v.type == script_state.OBS_COMBO:
 
-            _v.prop_ref = obs.obs_properties_add_list(
+            _prop = obs.obs_properties_add_list(
                 props, _k, _v.name, _v.type, obs.OBS_COMBO_FORMAT_STRING)
 
             if callable(_v.list_items):
 
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
-                _fill_prop_list(props, _v.prop_ref, "init")
+                _fill_prop_list(props, _k, "init")
 
                 # Add a button to refresh the property list
                 # There is no way currently in OBS to update the properties
@@ -722,25 +724,25 @@ def script_properties():
             else:
 
                 for _item in _v.list_items:
-                    obs.obs_property_list_add_string(_v.prop_ref, _item, _item)
+                    obs.obs_property_list_add_string(_prop, _item, _item)
 
         elif _v.type == script_state.OBS_BOOLEAN:
 
-                _v.prop_ref = obs.obs_properties_add_bool(props, _k, _v.name)
+                _prop = obs.obs_properties_add_bool(props, _k, _v.name)
 
         elif _v.type == script_state.OBS_BUTTON:
 
-            _v.prop_ref = obs.obs_properties_add_button(props, _k, _v.name, _v.callback)
+            _prop = obs.obs_properties_add_button(props, _k, _v.name, _v.callback)
 
         elif _v.type == script_state.OBS_INFO:
 
-            _v.prop_ref = obs.obs_properties_add_text(props, _k, _v.name, obs.OBS_TEXT_INFO)
+            _prop = obs.obs_properties_add_text(props, _k, _v.name, obs.OBS_TEXT_INFO)
 
         else:
 
-            _v.prop_ref = obs.obs_properties_add_text(props, _k, _v.name, _v.type)
+            _prop = obs.obs_properties_add_text(props, _k, _v.name, _v.type)
 
-        set_prop_tooltip(_v.prop_ref, _v.tooltip)
+        set_prop_tooltip(_prop, _v.tooltip)
 
     script_state.obs_properties = props
 
