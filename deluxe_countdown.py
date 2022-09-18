@@ -565,18 +565,30 @@ def activate(activating):
         print("deactivating")
         obs.timer_remove(update_text)
 
-def handle_source_visibility_signal(cd):
+def handle_source_visibility_signal(signal_name, cd):
     """
     Called when a source is changed such that we should consider activating or
     deactivating the countdown timer.
     """
     _cd_source = obs.calldata_source(cd, "source")
+
+    def _log(msg):
+        _name = "<unknown>"
+        if _cd_source:
+            _name = obs.obs_source_get_name(_cd_source)
+        print(f"[{datetime.now()}] Handling {signal_name}({_name}): {msg}")
+
     if not _cd_source:
+
+        _log(f"Ignoring: callback data had no source")
         return
 
     # If the passed in data isn't a text source, ignore the signal
     _cd_source_type = obs.obs_source_get_id(_cd_source)
     if not _cd_source_type.startswith("text"):
+
+        _log(f"Ignoring: callback data source '{obs.obs_source_get_name(_cd_source)}' "
+             f"is of type '{_cd_source_type}'; it's not a text source")
         return
 
     # Determine whether we should activate the timer or deactivate it
@@ -585,20 +597,22 @@ def handle_source_visibility_signal(cd):
     _target_source = obs.obs_get_source_by_name(_target_text_source_name)
     if not _target_source:
 
-        # The target source no longer exists
+        _log(f"Deactivating: target source '{_target_text_source_name}' not found")
         activate(False)
         return
 
     _target_source_type = obs.obs_source_get_id(_target_source)
     if not _target_source_type.startswith("text"):
 
-        # The target source is no longer a text source
+        _log(f"Deactivating: target source '{_target_text_source_name}' "
+             f"is no longer a text source (type '{_target_source_type}')")
         activate(False)
         return
 
     # The target source exists and is a text source; activate according to
     # whether OBS thinks the source is active on any view
     _is_active = obs.obs_source_active(_target_source)
+    _log(f"Setting activate({_is_active}): target source '{_target_text_source_name}' ")
     activate(_is_active)
 
 def restart_timer(induce_reset=True):
@@ -790,11 +804,24 @@ def script_load(settings):
     """
 
     _sh = obs.obs_get_signal_handler()
-    obs.signal_handler_connect(_sh, "source_hide", handle_source_visibility_signal)
-    obs.signal_handler_connect(_sh, "source_show", handle_source_visibility_signal)
-    obs.signal_handler_connect(_sh, "source_rename", handle_source_visibility_signal)
-    obs.signal_handler_connect(_sh, "source_create", handle_source_visibility_signal)
-    obs.signal_handler_connect(_sh, "source_destroy", handle_source_visibility_signal)
+    def _add_source_handler(signal):
+        """Adds a handler that includes the signal name as the first parameter
+        to the callback.  The body of the function can't be done inline in the
+        for loop below because the lambda would capture a reference to the
+        _signal loop variable rather than its contents, so the handler would
+        only ever see the last item in the list as its triggering signal name."""
+        obs.signal_handler_connect(_sh, signal,
+            lambda _cd: handle_source_visibility_signal(signal, _cd))
+
+    for _signal in """
+                source_hide
+                source_show
+                source_rename
+                source_create
+                source_destroy
+            """.split():
+        _add_source_handler(_signal)
+
     #obs.signal_handler_connect_global(_sh, print_signal)
 
     _hotkey_id = obs.obs_hotkey_register_frontend(
