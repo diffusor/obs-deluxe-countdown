@@ -27,6 +27,7 @@ import textwrap
 import typing
 import collections
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 import obspython as obs
 
@@ -455,6 +456,22 @@ def blkfmt(s):
     """
     return textwrap.dedent(s).strip()
 
+@contextmanager
+def auto_release_source(source):
+    """
+    Manages the OBS source of the given _name.  During execution of the with block,
+    the bound variable refers to the referenced source.  Afterwards, the source is released.
+    """
+    if isinstance(source, str):
+        source = obs.obs_get_source_by_name(_name)
+
+    try:
+        yield source
+
+    finally:
+        if source:
+            obs.obs_source_release(source)
+
 def set_prop_tooltip(prop, text):
     """
     Sets the given text as the prop's tooltip, after calling blkfmt on the text.
@@ -594,26 +611,26 @@ def handle_source_visibility_signal(signal_name, cd):
     # Determine whether we should activate the timer or deactivate it
 
     _target_text_source_name = script_state.get_text_source_name()
-    _target_source = obs.obs_get_source_by_name(_target_text_source_name)
-    if not _target_source:
+    with auto_release_source(_target_text_source_name) as _target_source:
+        if not _target_source:
 
-        _log(f"Deactivating: target source '{_target_text_source_name}' not found")
-        activate(False)
-        return
+            _log(f"Deactivating: target source '{_target_text_source_name}' not found")
+            activate(False)
+            return
 
-    _target_source_type = obs.obs_source_get_id(_target_source)
-    if not _target_source_type.startswith("text"):
+        _target_source_type = obs.obs_source_get_id(_target_source)
+        if not _target_source_type.startswith("text"):
 
-        _log(f"Deactivating: target source '{_target_text_source_name}' "
-             f"is no longer a text source (type '{_target_source_type}')")
-        activate(False)
-        return
+            _log(f"Deactivating: target source '{_target_text_source_name}' "
+                 f"is no longer a text source (type '{_target_source_type}')")
+            activate(False)
+            return
 
-    # The target source exists and is a text source; activate according to
-    # whether OBS thinks the source is active on any view
-    _is_active = obs.obs_source_active(_target_source)
-    _log(f"Setting activate({_is_active}): target source '{_target_text_source_name}' ")
-    activate(_is_active)
+        # The target source exists and is a text source; activate according to
+        # whether OBS thinks the source is active on any view
+        _is_active = obs.obs_source_active(_target_source)
+        _log(f"Setting activate({_is_active}): target source '{_target_text_source_name}' ")
+        activate(_is_active)
 
 def restart_timer(induce_reset=True):
     """
