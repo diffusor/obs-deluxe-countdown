@@ -459,7 +459,7 @@ def set_prop_tooltip(prop, text):
     """
     Sets the given text as the prop's tooltip, after calling blkfmt on the text.
     """
-    if text:
+    if prop and text:
         obs.obs_property_set_long_description(prop, blkfmt(text))
 
 def set_last_update_timestamp(props, reason):
@@ -473,11 +473,19 @@ def set_last_update_timestamp(props, reason):
         obs.obs_property_set_long_description(_last_update_prop,
                                               f"{datetime.now()}\n({reason})")
 
-def fill_sources_property_list(props, list_property, reason):
+def fill_sources_property_list(props, setting_name, reason):
     """
-    Update the list of Text Sources based on those currently known to OBS.
-    Use this when you want to display the countdown in a newly added source.
+    Updates the string combo box list in props as identified by setting_name.
+
+    This function lists all available text-type sources currently configured
+    in OBS, and populates the combo box with those names.
+
+    Returns True to indicate the script properties UI widgets should be
+    redrawn.  (This only applies when this function is called as a callback
+    for a button or as registered via obs_property_set_modified_callback.)
     """
+
+    list_property = obs.obs_properties_get(props, "text_source")
 
     obs.obs_property_list_clear(list_property)
     _sources = obs.obs_enum_sources()
@@ -708,7 +716,7 @@ def script_properties():
                 # must retutrn True to update the widgets.
                 _p = obs.obs_properties_add_button(
                     props, f'reload_{_k}', f'Reload {_v.name} list',
-                    lambda cd_props, p: True if _fill_prop_list(cd_props, _v.prop_ref, "reload sources button") else True)
+                    lambda cd_props, cd_prop: True if _fill_prop_list(cd_props, _k, "reload sources button") else True)
                 set_prop_tooltip(_p, _fill_prop_list.__doc__)
 
             else:
