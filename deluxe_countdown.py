@@ -305,6 +305,7 @@ class State():
         self.OBS_TEXT = obs.OBS_TEXT_DEFAULT
         self.OBS_BUTTON = 'OBS_BUTTON'
         self.OBS_BOOLEAN = 'OBS_BOOLEAN'
+        self.OBS_INFO = 'OBS_INFO'
 
         #other global vars for OBS callbacks
         self.clock = Clock()
@@ -393,6 +394,9 @@ class State():
             (Relevant if the Duration Clock Type is selected)
         """)
 
+        add_pref('last_update', 'Last Update', '<updated>', self.OBS_INFO,
+                 tooltip="<not updated>")
+
         return _p
 
     def refresh_properties(self, settings):
@@ -458,7 +462,7 @@ def set_prop_tooltip(prop, text):
     if text:
         obs.obs_property_set_long_description(prop, blkfmt(text))
 
-def fill_sources_property_list(list_property):
+def fill_sources_property_list(props, list_property):
     """
     Update the list of Text Sources based on those currently known to OBS.
     Use this when you want to display the countdown in a newly added source.
@@ -486,6 +490,10 @@ def fill_sources_property_list(list_property):
 
     # When called from script_update() or via obs_property_set_modified_callback(),
     # returning True induces OBS to regenerate the properties UI widgets.
+
+    _last_update_prop = obs.obs_properties_get(props, "last_update")
+    if _last_update_prop:
+        obs.obs_property_set_long_description(_last_update_prop, str(datetime.now()))
     return True
 
 def update_text():
@@ -642,12 +650,12 @@ def script_defaults(settings):
 
     for _k, _v in script_state.properties.items():
 
-        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN]:
+        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN, script_state.OBS_INFO]:
             obs.obs_data_set_default_string(settings, _k, _v.default)
 
     for _k, _v in script_state.properties.items():
 
-        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN]:
+        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN, script_state.OBS_INFO]:
             _v.cur_value = obs.obs_data_get_string(settings, _k)
 
     if script_state.properties['clock_type'] == 'Duration':
@@ -682,7 +690,7 @@ def script_properties():
 
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
-                _fill_prop_list(_v.prop_ref)
+                _fill_prop_list(props, _v.prop_ref)
 
                 # Add a button to refresh the property list
                 # There is no way currently in OBS to update the properties
@@ -691,7 +699,7 @@ def script_properties():
                 # must retutrn True to update the widgets.
                 _p = obs.obs_properties_add_button(
                     props, f'reload_{_k}', f'Reload {_v.name} list',
-                    lambda props, p: True if _fill_prop_list(_v.prop_ref) else True)
+                    lambda cd_props, p: True if _fill_prop_list(cd_props, _v.prop_ref) else True)
                 set_prop_tooltip(_p, _fill_prop_list.__doc__)
 
             else:
@@ -706,6 +714,10 @@ def script_properties():
         elif _v.type == script_state.OBS_BUTTON:
 
             _v.prop_ref = obs.obs_properties_add_button(props, _k, _v.name, _v.callback)
+
+        elif _v.type == script_state.OBS_INFO:
+
+            _v.prop_ref = obs.obs_properties_add_text(props, _k, _v.name, obs.OBS_TEXT_INFO)
 
         else:
 
