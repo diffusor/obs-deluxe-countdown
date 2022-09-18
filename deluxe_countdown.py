@@ -432,24 +432,6 @@ class State():
 
         return self.properties[pref_name].cur_value
 
-    def set_value(self, source_name, prop, value):
-        """
-        Dead code, seems broken
-
-        Set the value of the source using the provided settings
-        If settings is None, previously-provided settings will be used
-        """
-
-        _settings = obs.obs_data_create()
-        _source = obs.obs_get_source_by_name(source_name)
-
-        obs.obs_data_set_string(_settings, prop, value)
-        obs.obs_source_update(_source, _settings)
-        obs.obs_data_release(_settings)
-        obs.obs_source_release(_source)
-
-        self.properties[source_name].cur_value = value
-
     def get_text_source_name(self):
         """
         Get the name of the text source without the appended type information.
