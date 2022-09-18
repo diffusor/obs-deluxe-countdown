@@ -604,8 +604,7 @@ def handle_source_visibility_signal(signal_name, cd):
     _cd_source_type = obs.obs_source_get_id(_cd_source)
     if not _cd_source_type.startswith("text"):
 
-        _log(f"Ignoring: callback data source '{obs.obs_source_get_name(_cd_source)}' "
-             f"is of type '{_cd_source_type}'; it's not a text source")
+        _log(f"Ignoring non-text callback data source of type [{_cd_source_type}]")
         return
 
     # Determine whether we should activate the timer or deactivate it
