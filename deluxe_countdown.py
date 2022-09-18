@@ -490,6 +490,35 @@ def set_last_update_timestamp(props, reason):
         obs.obs_property_set_long_description(_last_update_prop,
                                               f"{datetime.now()}\n({reason})")
 
+def add_combo_list_regeneration_button(props, combo_prop, regen_fn):
+    """
+    Adds a button to refresh the given combo_prop list via the given regen_fn.
+
+    Note OBS has no way to update the properties UI except through a button
+    callback or through a obs_property_set_modified_callback callback, each of
+    which must retutrn True to update the widgets.
+
+    The regen_fn must take 3 arguments:
+        cd_props - an obs_properties_t reference to all script properties
+        combo_prop - the reference to the combo list obs_property_t
+        reason - a string describing why the regen_fn is being called
+
+    The created button will have a tooltip set from the regen_fn.__doc__ string,
+    and the reason passed in will indicate that the reload button was pressed.
+
+    The button callback is created such that the properties UI widgets will be
+    refreshed.
+    """
+
+    _combo_prop_setting_name = obs.obs_property_name(combo_prop)
+    _combo_prop_display_name = obs.obs_property_description(combo_prop)
+
+    _p = obs.obs_properties_add_button(
+        props, f'reload_{_combo_prop_setting_name}', f'Reload {_combo_prop_display_name} list',
+        lambda cd_props, cd_prop: True if regen_fn(cd_props, _combo_prop_setting_name, f"reload_{_combo_prop_setting_name} button") else True)
+
+    set_prop_tooltip(_p, regen_fn.__doc__)
+
 def fill_sources_property_list(props, setting_name, reason):
     """
     Updates the string combo box list in props as identified by setting_name.
@@ -766,16 +795,7 @@ def script_properties():
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
                 _fill_prop_list(props, _k, "init")
-
-                # Add a button to refresh the property list
-                # There is no way currently in OBS to update the properties
-                # widget except through a button callback or through a
-                # obs_property_set_modified_callback callback, each of which
-                # must retutrn True to update the widgets.
-                _p = obs.obs_properties_add_button(
-                    props, f'reload_{_k}', f'Reload {_v.name} list',
-                    lambda cd_props, cd_prop: True if _fill_prop_list(cd_props, _k, "reload sources button") else True)
-                set_prop_tooltip(_p, _fill_prop_list.__doc__)
+                add_combo_list_regeneration_button(props, _prop, _fill_prop_list)
 
             else:
 
