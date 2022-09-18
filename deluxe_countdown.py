@@ -414,8 +414,10 @@ class State():
 
     def get_value(self, pref_name, settings=None):
         """
-        Get the value of the source using the provided settings
-        If settings is None, previously-provided settings will be used
+        Updates and gets the current value of the requested preference using the
+        provided obs_settings_t settings object if it is not None.
+
+        Returns the resulting value of the preference.
         """
 
         if settings:
