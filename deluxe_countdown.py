@@ -325,6 +325,39 @@ class State():
         def add_pref(key, name, default, *args, **kwargs):
             _p[key] = Preference(key, name, default, *args, **kwargs, cur_value=default)
 
+        add_pref('text_source', 'Text Source', '', self.OBS_COMBO,
+                 list_items=fill_sources_property_list,
+                 tooltip="""
+            The OBS text source into which the countdown timer will render.
+            Add a text source to your scene, click the "Reload Text Source list" button,
+            then select your new source from the dropdown.
+            Note the countdown timer will replace the contents of the selected text source.
+        """)
+
+        add_pref('end_text', 'End Text', 'Live Now!', self.OBS_TEXT,
+                 tooltip="""
+            The text to display in the selected Text Source after the timer has expired.
+        """)
+
+        add_pref('reset_timer', 'Reset Timer', '', self.OBS_BUTTON,
+                 callback=reset_button_clicked,
+                 tooltip="""
+            Reset the timer to start from the given duration
+            (Relevant if the Duration Clock Type is selected)
+        """)
+
+        add_pref('hide_zero_units', 'Hide Zero Units', True, self.OBS_BOOLEAN,
+                 tooltip="""
+            Eliminate highest order clauses involving zero units.
+            For example, if Format is %H:%M:%S, but hours is 0 and minutes is not,
+            the resulting output will be %M:%S.
+        """)
+
+        add_pref('round_up', 'Round Up', True, self.OBS_BOOLEAN,
+                 tooltip="""
+            Round up to the next smallest unit when the remaining time falls in the middle.
+        """)
+
         add_pref('clock_type', 'Clock Type', 'Duration', self.OBS_COMBO,
                  list_items=['Duration', 'Date/Time'],
                  tooltip="""
@@ -340,18 +373,6 @@ class State():
               %H - hours in 24-hour time format
               %M - minutes
               %S - seconds
-        """)
-
-        add_pref('hide_zero_units', 'Hide Zero Units', False, self.OBS_BOOLEAN,
-                 tooltip="""
-            Eliminate highest order clauses involving zero units.
-            For example, if Format is %H:%M:%S, but hours is 0 and minutes is not,
-            the resulting output will be $M:%S.
-        """)
-
-        add_pref('round_up', 'Round Up', False, self.OBS_BOOLEAN,
-                 tooltip="""
-            Round up to the next smallest unit when the remaining time falls in the middle.
         """)
 
         add_pref('duration', 'Duration', '1000', self.OBS_TEXT,
@@ -372,27 +393,6 @@ class State():
                  tooltip="""
             Set the target time for use with the Date/Time Clock Type
             The format is "%H:%M:%S" for 24-hour time, or append am or pm for 12 hour time.
-        """)
-
-        add_pref('end_text', 'End Text', 'Live Now!', self.OBS_TEXT,
-                 tooltip="""
-            The text to display in the selected Text Source after the timer has expired.
-        """)
-
-        add_pref('text_source', 'Text Source', '', self.OBS_COMBO,
-                 list_items=fill_sources_property_list,
-                 tooltip="""
-            The OBS text source into which the countdown timer will render.
-            Add a text source to your scene, click the "Reload Text Source list" button,
-            then select your new source from the dropdown.
-            Note the countdown timer will replace the contents of the selected text source.
-        """)
-
-        add_pref('reset_timer', 'Reset Timer', '', self.OBS_BUTTON,
-                 callback=reset_button_clicked,
-                 tooltip="""
-            Reset the timer to start from the given duration
-            (Relevant if the Duration Clock Type is selected)
         """)
 
         add_pref('last_update', 'Last Update', '<updated>', self.OBS_INFO,
@@ -549,7 +549,7 @@ def fill_sources_property_list(props, list_property, reason):
     # Insert a dummy item so the script doesn't automatically select the first
     # item on the list and clobber its contents.
     obs.obs_property_list_insert_string(list_property, 0,
-        f'<[{datetime.now()}] None {"selected" if _has_items else "available"}>', '')
+        f'<None {"selected" if _has_items else "available"}>', '')
 
     set_last_update_timestamp(props, reason)
 
@@ -750,13 +750,16 @@ def script_defaults(settings):
 
     for _k, _v in script_state.properties.items():
 
-        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN, script_state.OBS_INFO]:
+        if _v.type in [script_state.OBS_TEXT, script_state.OBS_COMBO]:
+
             obs.obs_data_set_default_string(settings, _k, _v.default)
-
-    for _k, _v in script_state.properties.items():
-
-        if _v.type not in [script_state.OBS_BUTTON, script_state.OBS_BOOLEAN, script_state.OBS_INFO]:
             _v.cur_value = obs.obs_data_get_string(settings, _k)
+
+        if _v.type == script_state.OBS_BOOLEAN:
+
+            print(f"Setting default {_k} to {_v.default}!!!!")
+            obs.obs_data_set_default_bool(settings, _k, _v.default)
+            _v.cur_value = obs.obs_data_get_bool(settings, _k)
 
     if script_state.properties['clock_type'] == 'Duration':
 
@@ -803,6 +806,7 @@ def script_properties():
         elif _v.type == script_state.OBS_BOOLEAN:
 
                 _prop = obs.obs_properties_add_bool(props, _k, _v.name)
+                obs.obs_property_set_enabled(_prop, _v.default)
 
         elif _v.type == script_state.OBS_BUTTON:
 
