@@ -685,7 +685,10 @@ def print_signal(signal_name, cd):
 
 def script_update(settings):
     """
-    Called when the user updates settings
+    Applies the given settings into the script_state preferences.
+
+    Called when the user updates any property widget, prior to calling any
+    callback registered via obs_property_set_modified_callback.
     """
 
     _induce_reset = script_state.refresh_properties(settings)
@@ -705,6 +708,7 @@ def script_update(settings):
         script_state.clock.set_date_time(_date, _time)
 
     restart_timer(_induce_reset)
+    print("script_update complete")
 
 def script_description():
     """
@@ -747,12 +751,20 @@ def script_defaults(settings):
             script_state.properties['time'].cur_value
         )
 
+def global_property_modification_handler(props, prop, settings):
+    # TODO factor out the obs_data_get_string vs. bool etc. based on the type
+    # of preference in script_state
+    _name = obs.obs_property_name(prop)
+    print(f"Modified: {_name}: {script_state.get_value(_name)} -> {obs.obs_data_get_string(settings, _name)}")
+    set_last_update_timestamp(props, f"Prop {_name} modified")
+    return True
+
 def script_properties():
     """
     Create properties for script settings dialog
     """
 
-    props = obs.obs_properties_create()
+    _props = obs.obs_properties_create()
 
     for _k, _v in script_state.properties.items():
 
@@ -761,14 +773,14 @@ def script_properties():
         if _v.type == script_state.OBS_COMBO:
 
             _prop = obs.obs_properties_add_list(
-                props, _k, _v.name, _v.type, obs.OBS_COMBO_FORMAT_STRING)
+                _props, _k, _v.name, _v.type, obs.OBS_COMBO_FORMAT_STRING)
 
             if callable(_v.list_items):
 
                 # _v.list_items is a function that fills the property list itself
                 _fill_prop_list = _v.list_items
-                _fill_prop_list(props, _prop, "init")
-                add_combo_list_regeneration_button(props, _prop, _fill_prop_list)
+                _fill_prop_list(_props, _prop, "init")
+                add_combo_list_regeneration_button(_props, _prop, _fill_prop_list)
 
             else:
 
@@ -777,27 +789,28 @@ def script_properties():
 
         elif _v.type == script_state.OBS_BOOLEAN:
 
-                _prop = obs.obs_properties_add_bool(props, _k, _v.name)
+                _prop = obs.obs_properties_add_bool(_props, _k, _v.name)
                 obs.obs_property_set_enabled(_prop, _v.default)
 
         elif _v.type == script_state.OBS_BUTTON:
 
-            _prop = obs.obs_properties_add_button(props, _k, _v.name, _v.callback)
+            _prop = obs.obs_properties_add_button(_props, _k, _v.name, _v.callback)
 
         elif _v.type == script_state.OBS_INFO:
 
-            _prop = obs.obs_properties_add_text(props, _k, _v.name, obs.OBS_TEXT_INFO)
+            _prop = obs.obs_properties_add_text(_props, _k, _v.name, obs.OBS_TEXT_INFO)
 
         else:
 
-            _prop = obs.obs_properties_add_text(props, _k, _v.name, _v.type)
+            _prop = obs.obs_properties_add_text(_props, _k, _v.name, _v.type)
 
         set_prop_tooltip(_prop, _v.tooltip)
+        obs.obs_property_set_modified_callback(_prop, global_property_modification_handler)
 
-    script_state.obs_properties = props
+    script_state.obs_properties = _props
 
-    set_last_update_timestamp(props, "script load")
-    return props
+    set_last_update_timestamp(_props, "script load")
+    return _props
 
 def script_save(settings):
     """
