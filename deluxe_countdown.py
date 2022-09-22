@@ -398,11 +398,11 @@ class State():
         """
         _induce_reset = False
 
-        for _k, _v in self.prefs.items():
-            _prior_value = _v.cur_value
-            _v.cur_value = self.get_value(_k, settings)
+        for _k, _pref in self.prefs.items():
+            _prior_value = _pref.cur_value
+            _pref.cur_value = self.get_value(_k, settings)
 
-            if _v.induce_reset and _prior_value != _v.cur_value:
+            if _pref.induce_reset and _prior_value != _pref.cur_value:
                 _induce_reset = True
 
         return _induce_reset
@@ -731,17 +731,17 @@ def script_defaults(settings):
     Set default values for properties
     """
 
-    for _k, _v in script_state.prefs.items():
+    for _k, _pref in script_state.prefs.items():
 
-        if _v.type in [script_state.OBS_TEXT, script_state.OBS_COMBO]:
+        if _pref.type in [script_state.OBS_TEXT, script_state.OBS_COMBO]:
 
-            obs.obs_data_set_default_string(settings, _k, _v.default)
-            _v.cur_value = obs.obs_data_get_string(settings, _k)
+            obs.obs_data_set_default_string(settings, _k, _pref.default)
+            _pref.cur_value = obs.obs_data_get_string(settings, _k)
 
-        if _v.type == script_state.OBS_BOOLEAN:
+        if _pref.type == script_state.OBS_BOOLEAN:
 
-            obs.obs_data_set_default_bool(settings, _k, _v.default)
-            _v.cur_value = obs.obs_data_get_bool(settings, _k)
+            obs.obs_data_set_default_bool(settings, _k, _pref.default)
+            _pref.cur_value = obs.obs_data_get_bool(settings, _k)
 
     if script_state.prefs['clock_type'].cur_value == 'Duration':
 
@@ -770,47 +770,47 @@ def script_properties():
 
     _props = obs.obs_properties_create()
 
-    for _k, _v in script_state.prefs.items():
+    for _k, _pref in script_state.prefs.items():
 
         _prop = None
 
-        if _v.type == script_state.OBS_COMBO:
+        if _pref.type == script_state.OBS_COMBO:
 
             _prop = obs.obs_properties_add_list(
-                _props, _k, _v.name, _v.type, obs.OBS_COMBO_FORMAT_STRING)
+                _props, _k, _pref.name, _pref.type, obs.OBS_COMBO_FORMAT_STRING)
 
-            if callable(_v.list_items):
+            if callable(_pref.list_items):
 
-                # _v.list_items is a function that fills the property list itself
-                _fill_prop_list = _v.list_items
+                # _pref.list_items is a function that fills the property list itself
+                _fill_prop_list = _pref.list_items
                 _fill_prop_list(_props, _prop, "init")
                 add_combo_list_regeneration_button(_props, _prop, _fill_prop_list)
 
             else:
 
-                for _item in _v.list_items:
+                for _item in _pref.list_items:
                     obs.obs_property_list_add_string(_prop, _item, _item)
 
-        elif _v.type == script_state.OBS_BOOLEAN:
+        elif _pref.type == script_state.OBS_BOOLEAN:
 
-                _prop = obs.obs_properties_add_bool(_props, _k, _v.name)
-                obs.obs_property_set_enabled(_prop, _v.default)
+                _prop = obs.obs_properties_add_bool(_props, _k, _pref.name)
+                obs.obs_property_set_enabled(_prop, _pref.default)
 
-        elif _v.type == script_state.OBS_BUTTON:
+        elif _pref.type == script_state.OBS_BUTTON:
 
-            _prop = obs.obs_properties_add_button(_props, _k, _v.name, _v.callback)
+            _prop = obs.obs_properties_add_button(_props, _k, _pref.name, _pref.callback)
 
-        elif _v.type == script_state.OBS_INFO:
+        elif _pref.type == script_state.OBS_INFO:
 
-            _prop = obs.obs_properties_add_text(_props, _k, _v.name, obs.OBS_TEXT_INFO)
+            _prop = obs.obs_properties_add_text(_props, _k, _pref.name, obs.OBS_TEXT_INFO)
 
         else:
 
-            _prop = obs.obs_properties_add_text(_props, _k, _v.name, _v.type)
+            _prop = obs.obs_properties_add_text(_props, _k, _pref.name, _pref.type)
 
-        set_prop_tooltip(_prop, _v.tooltip)
+        set_prop_tooltip(_prop, _pref.tooltip)
 
-        if _v.type != script_state.OBS_BUTTON:
+        if _pref.type != script_state.OBS_BUTTON:
             obs.obs_property_set_modified_callback(_prop, global_property_modification_handler)
 
     script_state.obs_properties = _props
