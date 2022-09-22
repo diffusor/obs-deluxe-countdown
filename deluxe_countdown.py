@@ -809,7 +809,9 @@ def script_properties():
             _prop = obs.obs_properties_add_text(_props, _k, _v.name, _v.type)
 
         set_prop_tooltip(_prop, _v.tooltip)
-        obs.obs_property_set_modified_callback(_prop, global_property_modification_handler)
+
+        if _v.type != script_state.OBS_BUTTON:
+            obs.obs_property_set_modified_callback(_prop, global_property_modification_handler)
 
     script_state.obs_properties = _props
 
