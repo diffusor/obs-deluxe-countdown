@@ -298,12 +298,16 @@ class State():
         self.clock = Clock()
         self.hotkey_id = 0
         self.activated = False
-        self.properties = self.build_properties()
+        self.prefs = self.init_preferences()
         self.obs_properties = None
 
-    def build_properties(self):
+    def init_preferences(self):
         """
-        Build dict defining script properties
+        Specifies the dict of script preferences.
+
+        This is used to build the properties widget via the main OBS
+        script_properties() callback, as well as to mirror the state of those
+        properties settings for easier access by the script.
         """
 
         _p = {}
@@ -386,7 +390,7 @@ class State():
 
         return _p
 
-    def refresh_properties(self, settings):
+    def refresh_preferences(self, settings):
         """
         Refresh the script state to match the given settings from the user UI update
 
@@ -394,7 +398,7 @@ class State():
         """
         _induce_reset = False
 
-        for _k, _v in self.properties.items():
+        for _k, _v in self.prefs.items():
             _prior_value = _v.cur_value
             _v.cur_value = self.get_value(_k, settings)
 
@@ -415,13 +419,13 @@ class State():
 
             _fn = obs.obs_data_get_string
 
-            if self.properties[pref_name].type == self.OBS_BOOLEAN:
+            if self.prefs[pref_name].type == self.OBS_BOOLEAN:
                 _fn = obs.obs_data_get_bool
 
             _value = _fn(settings, pref_name)
-            self.properties[pref_name].cur_value = _value
+            self.prefs[pref_name].cur_value = _value
 
-        return self.properties[pref_name].cur_value
+        return self.prefs[pref_name].cur_value
 
 #------------------------------------------------
 # Handlers and helpers for OBS callback functions
@@ -543,9 +547,9 @@ def update_text():
     Update the text with the passed time string
     """
 
-    _hide_zero_units = script_state.properties['hide_zero_units'].cur_value
-    _format = script_state.properties['format'].cur_value
-    _round_up = script_state.properties['round_up'].cur_value
+    _hide_zero_units = script_state.prefs['hide_zero_units'].cur_value
+    _format = script_state.prefs['format'].cur_value
+    _round_up = script_state.prefs['round_up'].cur_value
     _annotated_duration = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
 
     _source_name = script_state.get_value('text_source')
@@ -691,20 +695,20 @@ def script_update(settings):
     callback registered via obs_property_set_modified_callback.
     """
 
-    _induce_reset = script_state.refresh_properties(settings)
+    _induce_reset = script_state.refresh_preferences(settings)
 
-    _type = script_state.properties['clock_type'].cur_value
+    _type = script_state.prefs['clock_type'].cur_value
 
     _is_duration = _type == 'Duration'
 
     if _is_duration:
 
-        _interval = script_state.properties['duration'].cur_value
+        _interval = script_state.prefs['duration'].cur_value
         script_state.clock.set_duration(_interval)
 
     else:
-        _date = script_state.properties['date'].cur_value
-        _time = script_state.properties['time'].cur_value
+        _date = script_state.prefs['date'].cur_value
+        _time = script_state.prefs['time'].cur_value
         script_state.clock.set_date_time(_date, _time)
 
     restart_timer(_induce_reset)
@@ -727,7 +731,7 @@ def script_defaults(settings):
     Set default values for properties
     """
 
-    for _k, _v in script_state.properties.items():
+    for _k, _v in script_state.prefs.items():
 
         if _v.type in [script_state.OBS_TEXT, script_state.OBS_COMBO]:
 
@@ -739,16 +743,16 @@ def script_defaults(settings):
             obs.obs_data_set_default_bool(settings, _k, _v.default)
             _v.cur_value = obs.obs_data_get_bool(settings, _k)
 
-    if script_state.properties['clock_type'] == 'Duration':
+    if script_state.prefs['clock_type'] == 'Duration':
 
         script_state.clock.set_duration(
-            script_state.properties['duration'].cur_value)
+            script_state.prefs['duration'].cur_value)
 
     else:
 
         script_state.clock.set_date_time(
-            script_state.properties['date'].cur_value,
-            script_state.properties['time'].cur_value
+            script_state.prefs['date'].cur_value,
+            script_state.prefs['time'].cur_value
         )
 
 def global_property_modification_handler(props, prop, settings):
@@ -766,7 +770,7 @@ def script_properties():
 
     _props = obs.obs_properties_create()
 
-    for _k, _v in script_state.properties.items():
+    for _k, _v in script_state.prefs.items():
 
         _prop = None
 
