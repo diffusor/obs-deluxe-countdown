@@ -722,7 +722,7 @@ def script_description():
     return blkfmt("""
         Display a countdown clock in an OBS text source.
 
-        Choose whether to count down a given duration of time,
+        Choose whether to count down a given duration,
         or count down to a specified target date and time.
     """)
 
@@ -761,7 +761,7 @@ def global_property_modification_handler(props, prop, settings):
     _name = obs.obs_property_name(prop)
     print(f"Modified: {_name}: {script_state.get_value(_name)} -> {obs.obs_data_get_string(settings, _name)}")
     set_last_update_timestamp(props, f"Prop {_name} modified")
-    return True
+    return False
 
 def script_properties():
     """
