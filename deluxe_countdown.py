@@ -743,7 +743,7 @@ def script_defaults(settings):
             obs.obs_data_set_default_bool(settings, _k, _v.default)
             _v.cur_value = obs.obs_data_get_bool(settings, _k)
 
-    if script_state.prefs['clock_type'] == 'Duration':
+    if script_state.prefs['clock_type'].cur_value == 'Duration':
 
         script_state.clock.set_duration(
             script_state.prefs['duration'].cur_value)
