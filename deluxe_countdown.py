@@ -168,18 +168,6 @@ class Clock():
         self.mode = 'duration'
         self.duration = self.update_duration(interval)
 
-    def set_date_time(self, target_date, target_time):
-        """
-        Set the target date / time of the timer
-        """
-
-        self.mode = 'date/time'
-
-        try:
-            self.duration = self.update_date_time(target_date, target_time)
-        except:
-            self.duration = 0
-
     def update_duration(self, interval):
         """
         Calculate the number of seconds for the specified duration
@@ -210,56 +198,54 @@ class Clock():
 
         return _seconds
 
-    def update_date_time(self, target_date, target_time):
+    def set_date_time(self, target_date, target_time):
         """
         Set the target date and time
         """
 
+        print("Setting date/time")
+        self.mode = 'date/time'
         if target_time is None:
+            print("Target time is None")
             return
 
-        #test for 12-hour format specification
-        _am_pm = target_time.find('am')
-        _is_pm = False
+        # handle "am/pm" 12-hour format specification
+        _is_am = "am" in target_time
+        _is_pm = "pm" in target_time
 
-        if _am_pm == -1:
-            _am_pm = target_time.find('pm')
-            _is_pm = _am_pm > -1
-
-        #strip 'am' or 'pm' text
-        if _am_pm != -1:
-            target_time = target_time[:_am_pm]
+        if _is_am or _is_pm:
+            # strip 'am' or 'pm' text
+            target_time = re.sub(r'\s*[ap]m\b', '', target_time, re.IGNORECASE)
 
         target_time = [int(_v) for _v in target_time.split(':')]
 
-        if len(target_time) == 2:
-            target_time += [0]
+        # Add time units from the least significant if unspecified
+        while len(target_time) < 3:
+            target_time.append(0)
 
         #adjust 12-hour pm to 24-hour format
-        if _is_pm:
-            if target_time[0] < 12:
-                target_time[0] += 12
+        if _is_pm and target_time[0] < 12:
+            target_time[0] += 12
 
-        elif target_time[0] == 12:
-                target_time[0] = 0
-
-        if target_time[0] > 23:
+        elif _is_am and target_time[0] == 12:
             target_time[0] = 0
 
-        _target = None
         _now = datetime.now()
 
         #calculate date
-        if target_date == 'TODAY':
-            target_date = [_now.month, _now.day, _now.year]
+        _offset = timedelta(0)
+
+        if target_date.upper() == 'TOMORROW':
+            _offset = timedelta(days=1)
+
+        if target_date.upper() in 'TODAY TOMORROW'.split():
+            target_date = [_now.year, _now.month, _now.day]
 
         else:
             target_date = [int(_v) for _v in target_date.split('/')]
 
-        self.target_time = datetime(
-                target_date[2], target_date[0], target_date[1],
-                target_time[0], target_time[1], target_time[2]
-        )
+        self.target_time = datetime(*target_date, *target_time) + _offset
+        print(f"Set target to {self.target_time}")
 
 @dataclass
 class Preference:
@@ -358,14 +344,6 @@ class State():
             Round up to the next smallest unit when the remaining time falls in the middle.
         """)
 
-        add_pref('clock_type', 'Clock Type', 'Duration', self.OBS_COMBO,
-                 list_items=['Duration', 'Date/Time'],
-                 tooltip="""
-            Choose the type of countdown timer:
-            * Duration: Count down to the last timer reset
-            * Date/Time: Count down to the given set point in time
-        """)
-
         add_pref('format', 'Format', '%H:%M:%S', self.OBS_TEXT,
                  tooltip="""
             Display format for the countdown timer, using strftime-style % codes:
@@ -373,6 +351,14 @@ class State():
               %H - hours in 24-hour time format
               %M - minutes
               %S - seconds
+        """)
+
+        add_pref('clock_type', 'Clock Type', 'Duration', self.OBS_COMBO,
+                 list_items=['Duration', 'Date/Time'],
+                 tooltip="""
+            Choose the type of countdown timer:
+            * Duration: Count down to the last timer reset
+            * Date/Time: Count down to the given set point in time
         """)
 
         add_pref('duration', 'Duration', '1000', self.OBS_TEXT,
@@ -385,7 +371,7 @@ class State():
                  induce_reset=True,
                  tooltip="""
             Set the target date for use with the Date/Time Clock Type
-            The format is %Y:%m:%d (ISO style), or TODAY
+            The format is %Y/%m/%d (ISO style), TODAY, or TOMORROW
         """)
 
         add_pref('time', 'Time', '12:00:00 pm', self.OBS_TEXT,
@@ -540,7 +526,7 @@ def fill_sources_property_list(props, list_property, reason):
         if _source_type.startswith("text"):
 
             _list_item = f"{obs.obs_source_get_name(_source)} ({_source_type})"
-            print(f"Adding source '{_list_item}'")
+            #print(f"Adding source '{_list_item}'")
             obs.obs_property_list_add_string(list_property, _list_item, _list_item)
 
     obs.source_list_release(_sources)
@@ -725,8 +711,8 @@ def script_update(settings):
         script_state.clock.set_duration(_interval)
 
     else:
-        _date = script_state.properties['date']
-        _time = script_state.properties['time']
+        _date = script_state.properties['date'].cur_value
+        _time = script_state.properties['time'].cur_value
         script_state.clock.set_date_time(_date, _time)
 
     restart_timer(_induce_reset)
@@ -757,7 +743,6 @@ def script_defaults(settings):
 
         if _v.type == script_state.OBS_BOOLEAN:
 
-            print(f"Setting default {_k} to {_v.default}!!!!")
             obs.obs_data_set_default_bool(settings, _k, _v.default)
             _v.cur_value = obs.obs_data_get_bool(settings, _k)
 
@@ -777,8 +762,6 @@ def script_properties():
     """
     Create properties for script settings dialog
     """
-
-    print("OBS called script_properties()")
 
     props = obs.obs_properties_create()
 
