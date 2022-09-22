@@ -423,12 +423,6 @@ class State():
 
         return self.properties[pref_name].cur_value
 
-    def get_text_source_name(self):
-        """
-        Get the name of the text source without the appended type information.
-        """
-        return sub_out_source_type_info("", self.get_value('text_source'))
-
 #------------------------------------------------
 # Handlers and helpers for OBS callback functions
 #------------------------------------------------
@@ -525,9 +519,10 @@ def fill_sources_property_list(props, list_property, reason):
         _source_type = obs.obs_source_get_id(_source)
         if _source_type.startswith("text"):
 
-            _list_item = f"{obs.obs_source_get_name(_source)} ({_source_type})"
+            _source_name = obs.obs_source_get_name(_source)
+            _list_item = f"{_source_name} ({_source_type})"
             #print(f"Adding source '{_list_item}'")
-            obs.obs_property_list_add_string(list_property, _list_item, _list_item)
+            obs.obs_property_list_add_string(list_property, _list_item, _source_name)
 
     obs.source_list_release(_sources)
 
@@ -553,7 +548,7 @@ def update_text():
     _round_up = script_state.properties['round_up'].cur_value
     _annotated_duration = script_state.clock.get_time(_format, _hide_zero_units, _round_up)
 
-    _source_name = script_state.get_text_source_name()
+    _source_name = script_state.get_value('text_source')
 
     if not _source_name:
         return
@@ -606,7 +601,7 @@ def handle_source_visibility_signal(signal_name, cd):
         _name = "<unknown>"
         if _cd_source:
             _name = obs.obs_source_get_name(_cd_source)
-        print(f"[{datetime.now()}] Handling {signal_name}({_name}): {msg}")
+        #print(f"[{datetime.now()}] Handling {signal_name}({_name}): {msg}")
 
     if not _cd_source:
 
@@ -622,7 +617,7 @@ def handle_source_visibility_signal(signal_name, cd):
 
     # Determine whether we should activate the timer or deactivate it
 
-    _target_text_source_name = script_state.get_text_source_name()
+    _target_text_source_name = script_state.get_value('text_source')
     with auto_release_source(_target_text_source_name) as _target_source:
         if not _target_source:
 
@@ -654,7 +649,7 @@ def restart_timer(induce_reset=True):
     if induce_reset:
         script_state.clock.reset()
 
-    _source_name = script_state.get_text_source_name()
+    _source_name = script_state.get_value('text_source')
     _source = obs.obs_get_source_by_name(_source_name)
 
     if _source:
@@ -683,12 +678,6 @@ def print_signal(signal_name, cd):
 
     else:
         print(f"Signal raised: '{signal_name}'")
-
-def print_properties(props):
-    for _k, _v in script_state.properties.items():
-        _prop = obs.obs_properties_get(props, "text_source")
-        if _prop:
-            print(f"Property {_k}: {_prop}")
 
 #-----------------------
 # OBS callback functions
